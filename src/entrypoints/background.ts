@@ -2,8 +2,12 @@ import { defineBackground } from '#imports'
 
 export default defineBackground({
   main() {
-    // Currently unused — floating VD button in content script handles showing the panel.
-    // Keeping this as a potential entry point for future keyboard shortcut / toolbar icon use.
-    chrome.action.onClicked.addListener(() => {})
+    chrome.action.onClicked.addListener((tab) => {
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, { type: 'toggle-panel' }).catch(() => {
+          // Page doesn't have the content script — nothing to do
+        })
+      }
+    })
   },
 })
