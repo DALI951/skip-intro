@@ -191,10 +191,34 @@ export default defineContentScript({
         transition: 'opacity .25s',
       })
 
+      let hideTimer: number | undefined
+
+      function show() {
+        btn.style.opacity = '1'
+        btn.style.pointerEvents = 'auto'
+        clearTimeout(hideTimer)
+      }
+
+      function startHideTimer() {
+        clearTimeout(hideTimer)
+        hideTimer = window.setTimeout(() => {
+          btn.style.opacity = '0'
+          btn.style.pointerEvents = 'none'
+        }, 2500)
+      }
+
+      function onMove() {
+        show()
+        startHideTimer()
+      }
+
       btn.onclick = (e) => {
         e.stopPropagation()
         video.currentTime = Math.min(video.duration, video.currentTime + duration)
         showToast(`Skipped +${fmtTime(duration)}`)
+        btn.style.opacity = '0'
+        btn.style.pointerEvents = 'none'
+        clearTimeout(hideTimer)
       }
 
       const parent = video.parentElement
@@ -204,20 +228,11 @@ export default defineContentScript({
       }
       parent.appendChild(btn)
 
-      let hideTimer: number | undefined
-      const showBtn = () => {
-        btn.style.opacity = '1'
-        btn.style.pointerEvents = 'auto'
-        if (hideTimer) clearTimeout(hideTimer)
-        hideTimer = window.setTimeout(() => {
-          btn.style.opacity = '0'
-          btn.style.pointerEvents = 'none'
-        }, 2500)
-      }
-      parent.addEventListener('mousemove', showBtn)
+      video.addEventListener('mousemove', onMove)
 
       currentSkipBtnRef = () => {
-        parent.removeEventListener('mousemove', showBtn)
+        clearTimeout(hideTimer)
+        video.removeEventListener('mousemove', onMove)
         if (btn.parentElement) btn.remove()
       }
     }
@@ -593,28 +608,24 @@ export default defineContentScript({
       buildPanelContent()
     }
 
-    async function checkSavedMarks(retries = 5) {
-      if (isIframe) return
-      const nameInput = document.getElementById('vd-show-name') as HTMLInputElement
-      if (!nameInput) {
-        if (retries > 0) {
-          setTimeout(() => checkSavedMarks(retries - 1), 1000)
-        }
-        return
-      }
-      const showName = nameInput.value.trim()
-      if (!showName) return
-      const slug = nameToSlug(showName)
-      const mark = await getSavedMark(slug)
-      if (mark) broadcastLive(mark.duration)
-    }
-
     // ─── Listen for toolbar icon click ──────────────────────
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg.type === 'toggle-panel') showPanel()
     })
 
     // ─── Auto-load saved mark on page load ──────────────────
-    setTimeout(checkSavedMarks, 1500)
+    async function autoDetectAndSkip(retries = 5) {
+      if (isIframe) return
+      const slug = extractShowSlug()
+      if (!slug) {
+        if (retries > 0) setTimeout(() => autoDetectAndSkip(retries - 1), 1500)
+        return
+      }
+      const marks = await getMarkData()
+      const mark = marks[slug]
+      const duration = mark ? mark.duration : 90
+      broadcastLive(duration)
+    }
+    setTimeout(autoDetectAndSkip, 1500)
   },
 })
