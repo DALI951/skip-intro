@@ -112,7 +112,9 @@ export default defineContentScript({
     // ─── Storage ───────────────────────────────────────────
     const STORAGE_KEY = 'vd-marks'
     const PANEL_POS_KEY = 'vd-panel-pos'
+    const SKIP_DATA_KEY = 'vd-current-skip'
     type MarkData = { duration: number; showName: string; savedAt: number }
+    type SkipData = { start: number; end: number }
 
     async function getMarkData(): Promise<Record<string, MarkData>> {
       const data = await chrome.storage.local.get(STORAGE_KEY)
@@ -237,24 +239,31 @@ export default defineContentScript({
       }
     }
 
-    // ─── Broadcast ─────────────────────────────────────────
-    function broadcastToIframes(duration: number) {
-      document.querySelectorAll('iframe').forEach(iframe => {
-        iframe.contentWindow?.postMessage({ type: 'vd-skip-data', start: 0, end: duration }, '*')
-      })
+    // ─── Storage sync (shares current skip with iframes) ────
+    function writeSkipData(duration: number) {
+      chrome.storage.local.set({ [SKIP_DATA_KEY]: { start: 0, end: duration } })
     }
 
     function broadcastLive(duration: number) {
       if (duration <= 0) return
       initAutoSkip(duration)
-      broadcastToIframes(duration)
+      writeSkipData(duration)
     }
 
-    // ─── Iframe handler ────────────────────────────────────
+    // ─── Iframe handler (reads skip from storage) ───────────
     if (isIframe) {
-      window.addEventListener('message', (e) => {
-        if (e.data?.type === 'vd-skip-data') {
-          const duration = (e.data.end || 0) - (e.data.start || 0)
+      chrome.storage.local.get(SKIP_DATA_KEY).then(data => {
+        const skip = data[SKIP_DATA_KEY] as SkipData | undefined
+        if (skip) {
+          const duration = (skip.end || 0) - (skip.start || 0)
+          if (duration > 0) initAutoSkip(duration)
+        }
+      })
+      chrome.storage.onChanged.addListener((changes) => {
+        if (changes[SKIP_DATA_KEY]) {
+          const skip = changes[SKIP_DATA_KEY].newValue as SkipData
+          if (currentSkipBtnRef) { currentSkipBtnRef(); currentSkipBtnRef = null }
+          const duration = (skip.end || 0) - (skip.start || 0)
           if (duration > 0) initAutoSkip(duration)
         }
       })
@@ -627,5 +636,27 @@ export default defineContentScript({
       broadcastLive(duration)
     }
     setTimeout(autoDetectAndSkip, 1500)
+
+    // ─── SPA navigation listener ────────────────────────────
+    let lastSlug = extractShowSlug()
+    function onUrlChange() {
+      const newSlug = extractShowSlug()
+      if (newSlug && newSlug !== lastSlug) {
+        lastSlug = newSlug
+        if (currentSkipBtnRef) { currentSkipBtnRef(); currentSkipBtnRef = null }
+        autoDetectAndSkip()
+      }
+    }
+    window.addEventListener('popstate', onUrlChange)
+    const origPush = history.pushState.bind(history)
+    history.pushState = function (...args) {
+      origPush(...args)
+      onUrlChange()
+    }
+    const origReplace = history.replaceState.bind(history)
+    history.replaceState = function (...args) {
+      origReplace(...args)
+      onUrlChange()
+    }
   },
 })
