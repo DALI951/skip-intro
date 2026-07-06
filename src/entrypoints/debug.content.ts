@@ -12,34 +12,64 @@ export default defineContentScript({
       const style = document.createElement('style')
       style.id = styleId
       style.textContent = `
-        #vd-debug { position:fixed;z-index:999999;background:#111;color:#d4d4d4;
-          padding:14px;font:12px/1.5 monospace,sans-serif;width:260px;border:1px solid #222 }
+        #vd-debug {
+          position:fixed;z-index:999999;background:#121212;color:#c8c8c8;
+          padding:16px 14px;font:12px/1.6 ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+          width:264px;border:1px solid #252528;border-radius:8px;
+          box-shadow:0 8px 32px rgba(0,0,0,.5);-webkit-font-smoothing:antialiased;
+        }
         #vd-debug .vd-handle { cursor:grab;user-select:none }
         #vd-debug .vd-handle:active { cursor:grabbing }
-        #vd-debug input { background:#18181b;color:#d4d4d4;border:1px solid #222;
-          outline:none;font:12px/1.4 monospace,sans-serif }
-        #vd-debug input:focus { border-color:#555 }
-        #vd-debug .vd-input { width:100%;display:block;padding:4px 8px }
-        #vd-debug .vd-sm { font-size:11px;color:#555 }
-        #vd-debug .vd-tab { flex:1;padding:5px 0;cursor:pointer;font:12px/1 monospace,sans-serif;
-          border:none;transition:background .15s;background:#18181b;color:#666 }
-        #vd-debug .vd-tab.active { background:#e05a3a;color:#fff;font-weight:600 }
-        #vd-debug .vd-tab:first-child { border-right:1px solid #222 }
-        #vd-debug .vd-btn { padding:6px 0;cursor:pointer;font:12px/1 monospace,sans-serif;
-          font-weight:600;border:none;color:#fff }
-        #vd-debug .vd-btn-save { background:#2a7d46 }
-        #vd-debug .vd-btn-clear { background:transparent;color:#666;border:1px solid #333;padding:6px 12px }
-        #vd-debug .vd-saved-header { font-size:12px;color:#666;cursor:pointer;user-select:none;
-          display:flex;align-items:center;gap:4px }
-        #vd-debug .vd-saved-entry { display:flex;align-items:center;gap:4px;padding:3px 4px;
-          cursor:pointer;font-size:12px;color:#888 }
-        #vd-debug .vd-saved-entry:hover { background:#18181b }
-        #vd-debug .vd-del { background:none;border:none;color:#555;cursor:pointer;font-size:11px;padding:0 2px }
-        #vd-toast { position:fixed;top:20px;left:50%;transform:translateX(-50%);
-          z-index:999999;background:#18181b;color:#d4d4d4;
-          padding:8px 16px;font:12px/1.4 monospace,sans-serif;
-          border:1px solid #333;pointer-events:auto;transition:opacity .25s }
-
+        #vd-debug input {
+          background:#18181b;color:#c8c8c8;border:1px solid #2a2a2e;
+          outline:none;font:12px/1.5 ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+          border-radius:4px;transition:border-color .2s,box-shadow .2s;
+        }
+        #vd-debug input:focus { border-color:#e05a3a;box-shadow:0 0 0 1px rgba(224,90,58,.25) }
+        #vd-debug .vd-input { width:100%;display:block;padding:5px 8px }
+        #vd-debug .vd-sm { font-size:10.5px;color:#5a5a5e;letter-spacing:.02em }
+        #vd-debug .vd-tab {
+          flex:1;padding:5px 0;cursor:pointer;font:12px/1 ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+          border:none;transition:background .2s,color .2s;background:#18181b;color:#555;
+          position:relative;
+        }
+        #vd-debug .vd-tab:hover { background:#202024;color:#999 }
+        #vd-debug .vd-tab:active { transform:scale(.97) }
+        #vd-debug .vd-tab.active { background:#1f1f22;color:#e05a3a;font-weight:600 }
+        #vd-debug .vd-tab.active::after {
+          content:'';position:absolute;bottom:0;left:8px;right:8px;height:2px;
+          background:#e05a3a;border-radius:1px;
+        }
+        #vd-debug .vd-tab:first-child { border-right:1px solid #252528 }
+        #vd-debug .vd-btn {
+          padding:7px 0;cursor:pointer;font:12px/1 ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+          font-weight:600;border:none;color:#fff;border-radius:4px;
+          transition:opacity .2s,transform .15s;
+        }
+        #vd-debug .vd-btn:hover { opacity:.85 }
+        #vd-debug .vd-btn:active { transform:scale(.97) }
+        #vd-debug .vd-btn-save { background:#1f6e3c }
+        #vd-debug .vd-btn-clear { background:transparent;color:#5a5a5e;border:1px solid #2a2a2e;padding:6px 12px;transition:border-color .2s,color .2s,transform .15s }
+        #vd-debug .vd-btn-clear:hover { border-color:#3a3a3e;color:#999 }
+        #vd-debug .vd-btn-clear:active { transform:scale(.97) }
+        #vd-debug .vd-saved-header { font-size:12px;color:#5a5a5e;cursor:pointer;user-select:none;
+          display:flex;align-items:center;gap:4px;padding:2px 0;transition:color .2s }
+        #vd-debug .vd-saved-header:hover { color:#888 }
+        #vd-debug .vd-saved-entry {
+          display:flex;align-items:center;gap:4px;padding:4px 6px;
+          cursor:pointer;font-size:12px;color:#6a6a6e;border-radius:4px;
+          transition:background .15s,color .15s;
+        }
+        #vd-debug .vd-saved-entry:hover { background:#1a1a1e;color:#999 }
+        #vd-debug .vd-del { background:none;border:none;color:#3a3a3e;cursor:pointer;font-size:11px;padding:0 4px;transition:color .15s;border-radius:2px }
+        #vd-debug .vd-del:hover { color:#c0392b }
+        #vd-toast {
+          position:fixed;top:20px;left:50%;transform:translateX(-50%);
+          z-index:999999;background:#1a1a1e;color:#c8c8c8;
+          padding:8px 18px;font:12px/1.5 ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+          border:1px solid #2a2a2e;border-radius:6px;pointer-events:auto;
+          transition:opacity .3s;box-shadow:0 4px 16px rgba(0,0,0,.4);
+        }
       `
       document.head.appendChild(style)
     }
@@ -71,10 +101,12 @@ export default defineContentScript({
       const toast = document.createElement('div')
       toast.id = 'vd-toast'
       toast.textContent = message
+      toast.style.opacity = '0'
       document.body.appendChild(toast)
+      requestAnimationFrame(() => { toast.style.opacity = '1' })
       setTimeout(() => {
         toast.style.opacity = '0'
-        setTimeout(() => toast.remove(), 250)
+        setTimeout(() => toast.remove(), 300)
       }, dur)
     }
 
@@ -226,12 +258,13 @@ export default defineContentScript({
       }
       Object.assign(btn.style, {
         position: 'absolute', zIndex: '99999',
-        background: '#e05a3a', color: '#fff', padding: '8px 16px',
-        font: 'bold 13px/1 monospace, sans-serif', cursor: 'pointer',
-        userSelect: 'none', transition: 'opacity .25s',
+        background: '#e05a3a', color: '#fff', padding: '8px 16px', borderRadius: '6px',
+        font: '600 13px/1 ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",monospace',
+        cursor: 'pointer', userSelect: 'none', transition: 'opacity .25s, transform .15s',
         ...posMap[_btnSettings.position] || posMap.br,
         opacity: _btnSettings.alwaysVisible ? '1' : '0',
         pointerEvents: _btnSettings.alwaysVisible ? 'auto' : 'none',
+        boxShadow: '0 2px 8px rgba(224,90,58,.35)',
       })
 
       let hideTimer: number | undefined
@@ -353,7 +386,7 @@ export default defineContentScript({
           ${autoName ? `<div style="margin-top:2px" class="vd-sm">Auto: ${esc(autoName)}</div>` : ''}
         </div>
 
-        <div style="display:flex;margin-bottom:8px;border:1px solid #222">
+        <div style="display:flex;margin-bottom:8px;border:1px solid #252528;border-radius:4px;overflow:hidden">
           <button id="vd-mode-timestamps" class="vd-tab${currentMode === 'timestamps' ? ' active' : ''}">Timestamps</button>
           <button id="vd-mode-length" class="vd-tab${currentMode === 'length' ? ' active' : ''}">Length</button>
         </div>
@@ -367,22 +400,23 @@ export default defineContentScript({
             <span class="vd-sm" style="width:32px">End</span>
             <input id="vd-end" type="text" value="0:30" class="vd-input" style="flex:1" autocomplete="off">
           </div>
-          <div class="vd-sm">skip <span id="vd-duration" style="color:#d4d4d4">0:30</span></div>
+          <div class="vd-sm">skip <span id="vd-duration" style="color:#c8c8c8">0:30</span></div>
         </div>
 
         <div id="vd-length-section" style="${currentMode !== 'length' ? 'display:none' : ''}">
           <div style="display:flex;align-items:center;gap:6px">
             <span class="vd-sm">Skip</span>
             <input id="vd-length" type="number" min="1" value="30" style="
-              width:70px;background:#18181b;color:#d4d4d4;border:1px solid #222;
-              padding:4px 8px;font:13px/1.4 monospace,sans-serif;outline:none"
+              width:70px;background:#18181b;color:#c8c8c8;border:1px solid #2a2a2e;
+              padding:5px 8px;font:13px/1.5 ui-monospace,'SF Mono','Cascadia Code','JetBrains Mono',monospace;
+              outline:none;border-radius:4px"
             autocomplete="off">
             <span class="vd-sm">seconds</span>
           </div>
         </div>
 
         <div style="margin-top:6px" class="vd-sm">
-          <span id="vd-status-text">not saved</span>
+          <span id="vd-status-text" style="color:#5a5a5e">not saved</span>
         </div>
 
         <div style="margin-top:8px;display:flex;gap:6px">
@@ -391,13 +425,13 @@ export default defineContentScript({
           <button id="vd-clear" class="vd-btn-clear">Clear</button>
         </div>
 
-        <div style="margin-top:6px;display:flex;gap:6px">
+<div style="margin-top:6px;display:flex;gap:6px">
           <button id="vd-export" class="vd-btn" style="flex:1;background:#555">Export</button>
           <button id="vd-import" class="vd-btn" style="flex:1;background:#555">Import</button>
         </div>
         <input id="vd-import-file" type="file" accept=".json" style="display:none">
 
-        <div style="margin-top:8px;border-top:1px solid #222;padding-top:6px">
+        <div style="margin-top:8px;border-top:1px solid #252528;padding-top:6px">
           <div class="vd-saved-header" id="vd-settings-header">
             <span id="vd-settings-arrow">▶</span>
             <span>Button Settings</span>
@@ -423,7 +457,7 @@ export default defineContentScript({
           </div>
         </div>
 
-        <div style="margin-top:8px;border-top:1px solid #222;padding-top:6px">
+        <div style="margin-top:8px;border-top:1px solid #252528;padding-top:6px">
           <div class="vd-saved-header">
             <span id="vd-saved-arrow">▶</span>
             <span>Saved Skips (<span id="vd-saved-count">0</span>)</span>
@@ -533,7 +567,7 @@ export default defineContentScript({
         if (lengthInput) lengthInput.value = String(mark.duration)
         updateDurationDisplay()
         const statusEl = document.getElementById('vd-status-text')
-        if (statusEl) statusEl.textContent = 'loaded'
+        if (statusEl) { statusEl.textContent = 'loaded'; statusEl.style.color = '#888' }
         broadcast()
       })
     }
@@ -583,8 +617,8 @@ export default defineContentScript({
       if (duration <= 0) { showToast('Duration must be greater than 0'); return }
       await saveMark(slug, duration, showName)
       const statusEl = document.getElementById('vd-status-text')
-      if (statusEl) statusEl.textContent = 'saved'
-      showToast('Saved!')
+      if (statusEl) { statusEl.textContent = 'saved'; statusEl.style.color = '#1f6e3c' }
+      showToast('Saved')
       renderSavedList()
       broadcast()
     }
@@ -595,7 +629,7 @@ export default defineContentScript({
       const slug = nameToSlug(showName)
       await clearMark(slug)
       const statusEl = document.getElementById('vd-status-text')
-      if (statusEl) statusEl.textContent = 'cleared'
+      if (statusEl) { statusEl.textContent = 'cleared'; statusEl.style.color = '#c0392b' }
       showToast('Cleared')
       renderSavedList()
     }
@@ -671,7 +705,7 @@ export default defineContentScript({
       if (countEl) countEl.textContent = String(entries.length)
 
       if (entries.length === 0) {
-        container.innerHTML = '<div class="vd-sm" style="color:#444">no saved skips</div>'
+        container.innerHTML = '<div class="vd-sm" style="color:#3a3a3e;padding:8px 0;text-align:center">no saved skips yet — save one above</div>'
         return
       }
 
@@ -702,10 +736,10 @@ export default defineContentScript({
         if (startInput) startInput.value = '0:00'
         if (endInput) endInput.value = fmtTime(mark.duration)
         if (lengthInput) lengthInput.value = String(mark.duration)
-        if (statusEl) statusEl.textContent = 'saved'
+        if (statusEl) { statusEl.textContent = 'saved'; statusEl.style.color = '#1f6e3c' }
         updateDurationDisplay()
       } else {
-        if (statusEl) statusEl.textContent = 'not saved'
+        if (statusEl) { statusEl.textContent = 'not saved'; statusEl.style.color = '#5a5a5e' }
       }
     }
 
@@ -763,27 +797,31 @@ export default defineContentScript({
 
       const closeBtn = document.createElement('button')
       closeBtn.textContent = '✕'
-      closeBtn.style.cssText = 'position:absolute;top:6px;right:8px;background:none;border:none;color:#555;cursor:pointer;font-size:13px'
+      closeBtn.style.cssText = 'position:absolute;top:6px;right:8px;background:none;border:none;color:#3a3a3e;cursor:pointer;font-size:13px;padding:2px 6px;border-radius:3px;transition:color .15s,background .15s'
+      closeBtn.onmouseenter = () => { closeBtn.style.color = '#999'; closeBtn.style.background = '#1a1a1e' }
+      closeBtn.onmouseleave = () => { closeBtn.style.color = '#3a3a3e'; closeBtn.style.background = 'none' }
       closeBtn.onclick = () => { panel!.remove(); panel = null }
 
       const handle = document.createElement('div')
       handle.className = 'vd-handle'
       Object.assign(handle.style, {
         position: 'absolute', top: '0', left: '0', right: '28px', height: '32px',
+        borderRadius: '8px 0 0 0',
       })
       handle.addEventListener('mousedown', onDragStart)
 
       const headerAccent = document.createElement('div')
       Object.assign(headerAccent.style, {
         position: 'absolute', top: '0', left: '0', width: '3px', height: '32px',
-        background: '#e05a3a', pointerEvents: 'none',
+        background: '#e05a3a', pointerEvents: 'none', borderRadius: '0 0 2px 0',
       })
 
       const title = document.createElement('div')
       title.textContent = 'Skip Intro'
       Object.assign(title.style, {
-        fontWeight: '700', fontSize: '14px', marginBottom: '10px',
-        color: '#d4d4d4', padding: '8px 8px 0 8px', pointerEvents: 'none',
+        fontWeight: '600', fontSize: '13px', letterSpacing: '.02em',
+        marginBottom: '12px', color: '#c8c8c8', padding: '8px 8px 0 8px',
+        pointerEvents: 'none',
       })
 
       const content = document.createElement('div')
