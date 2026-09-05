@@ -93,6 +93,9 @@ export default defineContentScript({
         const slugMatch = path.match(/\/([a-z0-9-]+)\/(?:e(?:p(?:isode)?)?\/?\d+|season\/\d+\/episode\/\d+)/i)
         if (slugMatch) return slugMatch[1]
 
+        const titleMatch = path.match(/\/(?:title|detail|embed|episode|videos?)\/([^/]+)/i)
+        if (titleMatch) return titleMatch[1]
+
         const title = document.title
         const patterns = [
           { re: /^(.+?)\s*الحلقة\s*\d+/ },
@@ -100,6 +103,19 @@ export default defineContentScript({
           { re: /^(.+?)\s+E\d+/i },
           { re: /^(.+?)\s+-\s+S\d+\s*E\d+/i },
           { re: /^(.+?)\s+S\d+:E\d+/i },
+          { re: /^(.+?)\s+Épisode\s+\d+/i },
+          { re: /^(.+?)\s+Saison\s+\d+/i },
+          { re: /^(.+?)\s+Cap[ií]tulo\s+\d+/i },
+          { re: /^(.+?)\s+Episodio\s+\d+/i },
+          { re: /^(.+?)\s+Temporada\s+\d+/i },
+          { re: /^(.+?)\s+Folge\s+\d+/i },
+          { re: /^(.+?)\s+Staffel\s+\d+/i },
+          { re: /^(.+?)\s+Epis[óo]dio\s+\d+/i },
+          { re: /^(.+?)\s+B[öo]l[uü]m\s+\d+/i },
+          { re: /^(.+?)\s+серия\s+\d+/i },
+          { re: /^(.+?)\s+эпизод\s+\d+/i },
+          { re: /^(.+?)話/ },
+          { re: /^(.+?)集/ },
         ]
         for (const { re } of patterns) {
           const m = title.match(re)
@@ -113,11 +129,27 @@ export default defineContentScript({
     const STORAGE_KEY = 'vd-marks'
     const PANEL_POS_KEY = 'vd-panel-pos'
     const SKIP_DATA_KEY = 'vd-current-skip'
+    const BTN_SETTINGS_KEY = 'vd-btn-settings'
     type MarkData = { duration: number; showName: string; savedAt: number }
     type SkipData = { start: number; end: number }
+    type BtnSettings = {
+      position: 'br' | 'bl' | 'tr' | 'tl'
+      alwaysVisible: boolean
+      hideDelay: number
+    }
+    const defaultBtnSettings: BtnSettings = { position: 'br', alwaysVisible: false, hideDelay: 2500 }
+
+    async function getBtnSettings(): Promise<BtnSettings> {
+      const data = await chrome.storage.local.get(BTN_SETTINGS_KEY)
+      return { ...defaultBtnSettings, ...data[BTN_SETTINGS_KEY] }
+    }
+
+    async function saveBtnSettings(s: BtnSettings) {
+      await chrome.storage.local.set({ [BTN_SETTINGS_KEY]: s })
+    }
 
     async function getMarkData(): Promise<Record<string, MarkData>> {
-      const data = await chrome.storage.local.get(STORAGE_KEY)
+      const data = await chrome.storage.sync.get(STORAGE_KEY)
       const raw = (data[STORAGE_KEY] || {}) as Record<string, any>
       let changed = false
       for (const [k, v] of Object.entries(raw)) {
@@ -134,7 +166,7 @@ export default defineContentScript({
           changed = true
         }
       }
-      if (changed) await chrome.storage.local.set({ [STORAGE_KEY]: raw })
+      if (changed) await chrome.storage.sync.set({ [STORAGE_KEY]: raw })
       return raw as Record<string, MarkData>
     }
 
@@ -146,13 +178,13 @@ export default defineContentScript({
     async function saveMark(key: string, duration: number, showName: string) {
       const marks = await getMarkData()
       marks[key] = { duration, showName, savedAt: Date.now() }
-      await chrome.storage.local.set({ [STORAGE_KEY]: marks })
+      await chrome.storage.sync.set({ [STORAGE_KEY]: marks })
     }
 
     async function clearMark(key: string) {
       const marks = await getMarkData()
       delete marks[key]
-      await chrome.storage.local.set({ [STORAGE_KEY]: marks })
+      await chrome.storage.sync.set({ [STORAGE_KEY]: marks })
     }
 
     async function getPanelPos(): Promise<{ top: number; left: number }> {
@@ -166,6 +198,7 @@ export default defineContentScript({
 
     // ─── Skip Button ───────────────────────────────────────
     let currentSkipBtnRef: (() => void) | null = null
+    let _btnSettings: BtnSettings = defaultBtnSettings
 
     function initAutoSkip(duration: number, retries = 3) {
       if (currentSkipBtnRef) {
@@ -179,18 +212,26 @@ export default defineContentScript({
         return
       }
       if (videos.length === 0) return
-      createSkipButton(videos[0], duration)
+      getBtnSettings().then(s => { _btnSettings = s; createSkipButton(videos[0], duration) })
     }
 
     function createSkipButton(video: HTMLVideoElement, duration: number) {
       const btn = document.createElement('div')
       btn.textContent = `Skip +${fmtTime(duration)}`
+      const posMap: Record<string, { bottom?: string; top?: string; right?: string; left?: string }> = {
+        br: { bottom: '60px', right: '12px' },
+        bl: { bottom: '60px', left: '12px' },
+        tr: { top: '60px', right: '12px' },
+        tl: { top: '60px', left: '12px' },
+      }
       Object.assign(btn.style, {
-        position: 'absolute', bottom: '60px', right: '12px', zIndex: '99999',
+        position: 'absolute', zIndex: '99999',
         background: '#e05a3a', color: '#fff', padding: '8px 16px',
         font: 'bold 13px/1 monospace, sans-serif', cursor: 'pointer',
-        userSelect: 'none', opacity: '0', pointerEvents: 'none',
-        transition: 'opacity .25s',
+        userSelect: 'none', transition: 'opacity .25s',
+        ...posMap[_btnSettings.position] || posMap.br,
+        opacity: _btnSettings.alwaysVisible ? '1' : '0',
+        pointerEvents: _btnSettings.alwaysVisible ? 'auto' : 'none',
       })
 
       let hideTimer: number | undefined
@@ -202,14 +243,16 @@ export default defineContentScript({
       }
 
       function startHideTimer() {
+        if (_btnSettings.alwaysVisible) return
         clearTimeout(hideTimer)
         hideTimer = window.setTimeout(() => {
           btn.style.opacity = '0'
           btn.style.pointerEvents = 'none'
-        }, 2500)
+        }, _btnSettings.hideDelay)
       }
 
       function onMove() {
+        if (_btnSettings.alwaysVisible) return
         show()
         startHideTimer()
       }
@@ -230,7 +273,9 @@ export default defineContentScript({
       }
       parent.appendChild(btn)
 
-      video.addEventListener('mousemove', onMove)
+      if (!_btnSettings.alwaysVisible) {
+        video.addEventListener('mousemove', onMove)
+      }
 
       currentSkipBtnRef = () => {
         clearTimeout(hideTimer)
@@ -342,7 +387,40 @@ export default defineContentScript({
 
         <div style="margin-top:8px;display:flex;gap:6px">
           <button id="vd-save" class="vd-btn vd-btn-save" style="flex:1">Save</button>
+          <button id="vd-skip-once" class="vd-btn" style="flex:1;background:#c97d2e">Skip Once</button>
           <button id="vd-clear" class="vd-btn-clear">Clear</button>
+        </div>
+
+        <div style="margin-top:6px;display:flex;gap:6px">
+          <button id="vd-export" class="vd-btn" style="flex:1;background:#555">Export</button>
+          <button id="vd-import" class="vd-btn" style="flex:1;background:#555">Import</button>
+        </div>
+        <input id="vd-import-file" type="file" accept=".json" style="display:none">
+
+        <div style="margin-top:8px;border-top:1px solid #222;padding-top:6px">
+          <div class="vd-saved-header" id="vd-settings-header">
+            <span id="vd-settings-arrow">▶</span>
+            <span>Button Settings</span>
+          </div>
+          <div id="vd-settings-body" style="margin-top:6px;display:none">
+            <div class="vd-sm" style="margin-bottom:4px">Position</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-bottom:6px">
+              <button class="vd-pos-btn vd-btn" data-pos="tl" style="background:#333">TL</button>
+              <button class="vd-pos-btn vd-btn" data-pos="tr" style="background:#333">TR</button>
+              <button class="vd-pos-btn vd-btn" data-pos="bl" style="background:#333">BL</button>
+              <button class="vd-pos-btn vd-btn" data-pos="br" style="background:#333">BR</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span class="vd-sm">Always visible</span>
+              <input id="vd-always-vis" type="checkbox" style="accent-color:#e05a3a">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="vd-sm">Hide delay</span>
+              <input id="vd-hide-delay" type="number" min="500" step="500" value="2500"
+                style="width:70px;background:#18181b;color:#d4d4d4;border:1px solid #222;padding:4px 8px;font:12px monospace;outline:none">
+              <span class="vd-sm">ms</span>
+            </div>
+          </div>
         </div>
 
         <div style="margin-top:8px;border-top:1px solid #222;padding-top:6px">
@@ -356,6 +434,9 @@ export default defineContentScript({
 
       loadSavedState()
       renderSavedList()
+      renderBtnSettings()
+      const fileInput = panel.querySelector('#vd-import-file') as HTMLInputElement
+      if (fileInput) fileInput.onchange = handleImport
     }
 
     function handlePanelClick(e: Event) {
@@ -382,6 +463,41 @@ export default defineContentScript({
 
       if (target.id === 'vd-clear') {
         handleClear()
+        return
+      }
+
+      if (target.id === 'vd-skip-once') {
+        handleSkipOnce()
+        return
+      }
+
+      if (target.id === 'vd-export') {
+        handleExport()
+        return
+      }
+
+      if (target.id === 'vd-import') {
+        document.getElementById('vd-import-file')?.click()
+        return
+      }
+
+      if (target.id === 'vd-settings-header' || target.closest('#vd-settings-header')) {
+        const body = document.getElementById('vd-settings-body')
+        const arrow = document.getElementById('vd-settings-arrow')
+        if (body) body.style.display = body.style.display === 'none' ? '' : 'none'
+        if (arrow) arrow.textContent = body?.style.display === 'none' ? '▶' : '▼'
+        return
+      }
+
+      const posBtn = target.closest('.vd-pos-btn') as HTMLElement
+      if (posBtn) {
+        const pos = posBtn.dataset.pos as BtnSettings['position']
+        getBtnSettings().then(s => {
+          s.position = pos
+          saveBtnSettings(s)
+          renderBtnSettings()
+          showToast(`Button position: ${pos.toUpperCase()}`)
+        })
         return
       }
 
@@ -429,6 +545,19 @@ export default defineContentScript({
         broadcast()
       } else if (target.id === 'vd-length') {
         broadcast()
+      } else if (target.id === 'vd-always-vis') {
+        getBtnSettings().then(s => {
+          s.alwaysVisible = (target as HTMLInputElement).checked
+          saveBtnSettings(s)
+        })
+      } else if (target.id === 'vd-hide-delay') {
+        const val = parseInt((target as HTMLInputElement).value, 10)
+        if (!isNaN(val) && val >= 500) {
+          getBtnSettings().then(s => {
+            s.hideDelay = val
+            saveBtnSettings(s)
+          })
+        }
       }
     }
 
@@ -471,12 +600,64 @@ export default defineContentScript({
       renderSavedList()
     }
 
+    function handleSkipOnce() {
+      const duration = getDuration()
+      if (duration <= 0) { showToast('Set a duration first'); return }
+      const video = document.querySelector('video')
+      if (!video) { showToast('No video found'); return }
+      video.currentTime = Math.min(video.duration, video.currentTime + duration)
+      showToast(`Skipped once +${fmtTime(duration)}`)
+    }
+
+    async function handleExport() {
+      const marks = await getMarkData()
+      const blob = new Blob([JSON.stringify(marks, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `skip-intro-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast('Exported!')
+    }
+
+    async function handleImport() {
+      const input = document.getElementById('vd-import-file') as HTMLInputElement
+      if (!input || !input.files?.[0]) return
+      const text = await input.files[0].text()
+      let imported: Record<string, any>
+      try { imported = JSON.parse(text) } catch { showToast('Invalid JSON'); return }
+      const existing = await getMarkData()
+      for (const [k, v] of Object.entries(imported)) {
+        if (v && typeof v.duration === 'number') {
+          existing[k] = { duration: v.duration, showName: v.showName || '', savedAt: v.savedAt || Date.now() }
+        }
+      }
+      await chrome.storage.sync.set({ [STORAGE_KEY]: existing })
+      input.value = ''
+      renderSavedList()
+      showToast('Imported!')
+    }
+
     function broadcast() {
       const duration = getDuration()
       if (broadcastTimer) clearTimeout(broadcastTimer)
       broadcastTimer = window.setTimeout(() => {
         if (duration > 0) broadcastLive(duration)
       }, 200)
+    }
+
+    function renderBtnSettings() {
+      getBtnSettings().then(s => {
+        const body = document.getElementById('vd-settings-body')
+        if (!body) return
+        const posBtns = body.querySelectorAll('.vd-pos-btn') as NodeListOf<HTMLElement>
+        posBtns.forEach(b => b.style.background = b.dataset.pos === s.position ? '#e05a3a' : '#333')
+        const cb = document.getElementById('vd-always-vis') as HTMLInputElement
+        if (cb) cb.checked = s.alwaysVisible
+        const delay = document.getElementById('vd-hide-delay') as HTMLInputElement
+        if (delay) delay.value = String(s.hideDelay)
+      })
     }
 
     async function renderSavedList() {
@@ -622,41 +803,18 @@ export default defineContentScript({
       if (msg.type === 'toggle-panel') showPanel()
     })
 
-    // ─── Auto-load saved mark on page load ──────────────────
-    async function autoDetectAndSkip(retries = 5) {
-      if (isIframe) return
-      const slug = extractShowSlug()
-      if (!slug) {
-        if (retries > 0) setTimeout(() => autoDetectAndSkip(retries - 1), 1500)
-        return
+    // ─── Keyboard shortcut (Alt+S) ──────────────────────────
+    document.addEventListener('keydown', (e) => {
+      if (e.altKey && e.key === 's') {
+        e.preventDefault()
+        const val = parseInt((document.getElementById('vd-length') as HTMLInputElement)?.value || '30', 10)
+        const duration = !isNaN(val) && val > 0 ? val : 30
+        const video = document.querySelector('video')
+        if (video) {
+          video.currentTime = Math.min(video.duration, video.currentTime + duration)
+          showToast(`Skipped +${fmtTime(duration)}`)
+        }
       }
-      const marks = await getMarkData()
-      const mark = marks[slug]
-      const duration = mark ? mark.duration : 90
-      broadcastLive(duration)
-    }
-    setTimeout(autoDetectAndSkip, 1500)
-
-    // ─── SPA navigation listener ────────────────────────────
-    let lastSlug = extractShowSlug()
-    function onUrlChange() {
-      const newSlug = extractShowSlug()
-      if (newSlug && newSlug !== lastSlug) {
-        lastSlug = newSlug
-        if (currentSkipBtnRef) { currentSkipBtnRef(); currentSkipBtnRef = null }
-        autoDetectAndSkip()
-      }
-    }
-    window.addEventListener('popstate', onUrlChange)
-    const origPush = history.pushState.bind(history)
-    history.pushState = function (...args) {
-      origPush(...args)
-      onUrlChange()
-    }
-    const origReplace = history.replaceState.bind(history)
-    history.replaceState = function (...args) {
-      origReplace(...args)
-      onUrlChange()
-    }
+    })
   },
 })
